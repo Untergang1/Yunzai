@@ -1,0 +1,8 @@
+# 修改后重启 Yunzai；协议端连接 ws://localhost:2536/OneBotv12
+enable: false
+# 与协议端一致；空字符串表示不启用适配器令牌校验，服务器全局鉴权仍然生效
+access_token: ""
+# 动作及初始化超时，毫秒
+action_timeout: 60000
+# 本地文件、下载和 Base64 解码大小上限，字节；URL 上传由协议端限制
+max_file_size: 10485760

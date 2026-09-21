@@ -9,7 +9,11 @@ export class quit extends plugin {
   }
 
   async accept() {
-    if (this.e.user_id != this.e.self_id || !this.e.group?.quit || !this.e.group.getMemberMap)
+    if (
+      this.e.user_id != (this.e.self_user_id ?? this.e.self_id) ||
+      !this.e.group?.quit ||
+      !this.e.group.getMemberMap
+    )
       return false
 
     const other = cfg.other
@@ -20,7 +24,7 @@ export class quit extends plugin {
 
     /** 判断主人邀请不退群 */
     for (const qq of cfg.masterQQ)
-      if (gml.has(Number(qq) || String(qq))) {
+      if (gml.has(String(qq)) || gml.has(Number(qq))) {
         logger.mark(`[主人拉群] ${this.e.group_id}`)
         return false
       }

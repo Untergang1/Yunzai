@@ -142,7 +142,7 @@ export class add extends plugin {
           delete i.url
           delete i.fid
         }
-        if (i.type == "at" && i.qq == this.e.self_id) continue
+        if (i.type == "at" && i.qq == (this.e.self_user_id ?? this.e.self_id)) continue
         context.message.push(i)
       }
       return

@@ -2,7 +2,7 @@
 
 # TRSS-Yunzai
 
-Yunzai 应用端，支持多账号，支持协议端：OneBotv11、ComWeChat、GSUIDCore、ICQQ、QQBot、QQ频道、微信、KOOK、Telegram、Discord、OPQBot、Lagrange
+Yunzai 应用端，支持多账号，支持协议端：OneBotv12、OneBotv11、ComWeChat、GSUIDCore、ICQQ、QQBot、QQ频道、微信、KOOK、Telegram、Discord、OPQBot、Lagrange
 
 [![Stars](https://img.shields.io/github/stars/TimeRainStarSky/Yunzai?color=yellow&label=收藏)](../../stargazers)
 [![Downloads](https://img.shields.io/github/downloads/TimeRainStarSky/Yunzai/total?color=blue&label=下载)](../../archive/main.tar.gz)
@@ -157,6 +157,14 @@ bash <(curl -L https://raw.gitcode.com/TimeRainStarSky/Yunzai/raw/main/lib/tools
 
 <details><summary>WebSocket</summary><blockquote>
 
+<details><summary>OneBotv12</summary><blockquote>
+
+支持反向 WebSocket、多账号、私聊和群聊，默认关闭。在 `config/config/onebotv12.yaml` 中启用后重启，协议端连接 `ws://localhost:2536/OneBotv12`。
+
+配置、接口与限制见 [OneBot v12 适配器文档](docs/onebot-v12.md)。
+
+</blockquote></details>
+
 <details><summary>OneBotv11</summary><blockquote>
 
 <details><summary>go-cqhttp</summary><blockquote>
@@ -260,6 +268,8 @@ ws://localhost:2536/GSUIDCore
 3. 设置主人：发送 `#设置主人`，日志获取验证码并发送
 
 ## 开发文档
+
+- [OneBot v12 适配器：配置、接口与实现](docs/onebot-v12.md)
 
 - [类型库](https://github.com/KaguyaJs/TRSS-Yunzai-Types)
 - [oicq](https://oicqjs.github.io/oicq)
