@@ -11,3 +11,5 @@
 /dump.rdb
 /pnpm-lock.yaml
 /*.sh
+/reports/onebot12/
+/tools/__pycache__/

@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "test:onebot12": "node --test test/onebot12/*.test.js",
+    "probe:wechat-readonly": "node tools/onebot12-readonly.js",
     "app": "node .",
     "dev": "node . dev",
     "web": "node lib/tools/web.js",
