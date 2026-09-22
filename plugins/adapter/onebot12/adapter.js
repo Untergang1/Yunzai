@@ -2,6 +2,7 @@ import { Account } from "./account.js"
 import { Messages } from "./messages.js"
 import { Session } from "./session.js"
 import { botId, verifyRequest } from "./protocol.js"
+import { WechatAIAccount, handleWechatAIEvent } from "./wechat-ai.js"
 
 const notices = {
   friend_increase: ["friend", "increase"],
@@ -59,6 +60,7 @@ export class OneBot12Adapter {
     return session
   }
   raw(session, event, bot) {
+    handleWechatAIEvent(this, session, event)
     this.Bot.emit("onebot12.event", {
       event: structuredClone(event),
       bot,
@@ -90,7 +92,11 @@ export class OneBot12Adapter {
       Object.assign(bot.stat, item)
       return
     }
-    bot = new Account(this, session, key, item)
+    const AccountClass =
+      session.version.impl === "wechat-ai" && item.self.platform === "wechat"
+        ? WechatAIAccount
+        : Account
+    bot = new AccountClass(this, session, key, item)
     session.accounts.set(key, bot)
     this.Bot.bots[key] = bot
     if (!this.Bot.uin.includes(key)) this.Bot.uin.push(key)

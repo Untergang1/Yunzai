@@ -1,6 +1,6 @@
 # OneBot v12 适配器
 
-本适配器对接支持 OneBot v12 **反向 WebSocket** 的协议端，提供私聊、群聊、多账号、媒体文件与标准通知。入口为 `/OneBotv12`，默认关闭。
+本适配器对接支持 OneBot v12 **反向 WebSocket** 的协议端，提供私聊、群聊、多账号、媒体文件与标准通知。入口为 `/OneBotv12`，默认关闭。实际能力取决于协议端；微信使用下文的 [wechat-ai 专用适配](#wechat-ai-专用适配)。
 
 协议依据为 [OneBot 12 候选标准](https://12.onebot.dev/)，核对日期：2026-09-21。验收使用模拟协议端，尚未针对特定实际协议端完成联调。
 
@@ -65,6 +65,8 @@ await e.reply("收到", true) // 引用原消息
 
 ### 已封装动作
 
+下表及标准消息段、文件转换说明适用于通用协议端；wechat-ai 的差异见 [专用适配](#wechat-ai-专用适配)。
+
 | 插件接口                                          | v12 动作                           |
 | ------------------------------------------------- | ---------------------------------- |
 | 好友/群 `.sendMsg()`、`.sendFile()`               | `send_message`，文件先上传         |
@@ -78,7 +80,7 @@ await e.reply("收到", true) // 引用原消息
 
 `pickUser` 等价于 `pickFriend`，可用于非好友私聊；`pickMember(group_id, user_id)` 与 `pickGroup(group_id).pickMember(user_id)` 等价。列表接口中 Array 返回信息对象数组，List 返回 ID 数组，Map 返回以字符串 ID 为键的 Map。`getGroupMemberMap(group_id)` 查询单群，省略参数时显式查询所有群成员。`fl/gl/gml` 是账号独立缓存；上线异步加载自身、好友与群信息，成员信息按需加载。
 
-`sendMsg` 返回包含 `message_id`、`time` 的结果，撤回、改群名和退群成功返回 `true`。标准未定义的管理员角色、头像和历史消息查询不伪造，也没有通用的 `getMsg/getReply` 能力。
+通用协议端的 `sendMsg` 返回包含 `message_id`、`time` 的结果，撤回、改群名和退群成功返回 `true`。标准未定义的管理员角色、头像和历史消息查询不伪造，也没有通用的 `getMsg/getReply` 能力。
 
 ### 原始动作与错误
 
@@ -91,11 +93,11 @@ await e.reply(segment.raw({ type: "vendor.custom_segment", data: { value: 1 } })
 
 `sendApi(action, params = {})` 返回完整 `{ status, retcode, data, message, echo }`，非元动作的顶层 `self` 由账号自动附加。失败抛出 Error，远端动作失败带 `action`、`retcode`、`response`；本地错误通过 `code` 区分 `TIMEOUT`、`DISCONNECTED`、`ACCOUNT_OFFLINE`、`UNSUPPORTED_ACTION`、`INVALID_RESPONSE` 等。失败与超时不自动重发。
 
-标准封装根据 `get_supported_actions` 检查能力，发现失败时记录“能力未知”，调用以实际响应为准。原始 `sendApi` 可显式调用扩展动作，不受封装能力检查限制。扩展入口不提供实现专属转换。
+标准封装根据 `get_supported_actions` 检查能力，发现失败时记录“能力未知”，调用以实际响应为准。原始 `sendApi` 可显式调用扩展动作，不受封装能力检查限制。`sendApi` 不转换扩展参数或结果；微信 `sendMsg` 的专用转换见下文。
 
 ## 消息与事件
 
-支持 `text`、`at`（含 all）、`reply`、`image`、`record`、`audio`、`video`、`file`、`location`。`record` 对应 v12 的 `voice`；`audio` 与 `location` 可用 `segment.custom(type, data)` 构造。引用发送者可省略。媒体段也可显式传入当前协议端有效的 `file_id`。
+通用协议端支持 `text`、`at`（含 all）、`reply`、`image`、`record`、`audio`、`video`、`file`、`location`。`record` 对应 v12 的 `voice`；`audio` 与 `location` 可用 `segment.custom(type, data)` 构造。引用发送者可省略。媒体段也可显式传入当前协议端有效的 `file_id`。
 
 发送整条消息前检查所有段。按钮、合并转发、JSON/XML 等未封装段明确报 `UNSUPPORTED_SEGMENT`，不自动转文本或拆分消息；`sendForwardMsg` 同样拒绝。现有插件的 `e.reply()` 包装器会记录发送错误并返回 `{ error: [...] }`。依赖合并转发的内置或第三方命令也受此限制。
 
@@ -122,9 +124,75 @@ await e.reply(segment.raw({ type: "vendor.custom_segment", data: { value: 1 } })
 - 图片解析成功后才加入 `e.img`。解析失败仍保留消息、`file_id` 和段内 `error`，文本命令可继续处理。
 - 不跨连接缓存文件 ID 或 URL，不读取协议端远程路径。更底层的文件与扩展能力可通过 `sendApi` 显式使用。
 
+## wechat-ai 专用适配
+
+连接的 `meta.connect.version.impl` 为 `wechat-ai` 且账号 `self.platform` 为 `wechat` 时，自动使用专用账号类。子协议仍为 `12.wechat-ai`，入口、令牌、超时配置和账号键均沿用现有 OneBot v12 配置，无需迁移。能力列表保持协议端的真实声明，不会因为 `sendMsg` 可用而添加标准 `send_message`。
+
+### 接入与运行
+
+按 [wechat-ai 接入指南](https://github.com/Untergang1/wechat-ai/blob/master/docs/onebot.md) 部署并准备数据库凭据。其实际运行配置需包含以下设置；已有配置只修改相应字段：
+
+```yaml
+onebot:
+  enabled: true
+  write_enabled: true
+  reverse_websockets:
+    - url: ws://host.docker.internal:2536/OneBotv12
+      token_env: WECHAT_AI_ONEBOT_TOKEN
+      reconnect_interval: 5000
+```
+
+此地址适用于协议端 Compose 已配置宿主机映射、Yunzai 运行在宿主机的情况；其它部署替换为实际可达地址。Yunzai 需监听容器可访问的接口。`WECHAT_AI_ONEBOT_TOKEN` 与 Yunzai 的 `access_token` 一致；空值只适用于两侧不要求令牌的配置，服务器全局鉴权仍生效。
+
+`onebot.write_enabled` 默认关闭，只接收消息和查询资料不需要打开。修改微信 YAML 后按其文档重启 Bot；修改容器环境变量需要重新创建容器。无需改变 Yunzai 的配置格式。
+
+### 能力与插件用法
+
+| 能力 | 微信专用行为 |
+| --- | --- |
+| 私聊/群聊文本收发 | 标准文本事件进入插件链；发送映射为 `wechat.send_text_msg` |
+| 群内单成员 @ | 仅允许正文前的一个 `segment.at(原始成员ID)`，由协议端解析成员及显示名歧义 |
+| 自身、用户、群、群成员资料 | 复用标准查询，保留 `wechat.*` 扩展字段 |
+| 好友列表 | 明确报 `UNSUPPORTED_ACTION`；上线只加载自身和群，不用联系人搜索伪造好友列表 |
+| 引用、@全体、多成员 @、私聊 @、媒体、转发 | 整条消息发送前拒绝，不拆分、不去掉不支持的段、不上传文件 |
+| 撤回 | 协议端未实现；不会为延时撤回补造消息 ID |
+| 历史查询、拍一拍、文件及群管理扩展 | 通过 `sendApi` 显式使用，参数和执行边界以协议端文档为准 |
+
+```js
+const bot = Bot["ob12/wechat/wxid_bot"] // 使用实际账号键
+const result = await bot.pickFriend("wxid_user").sendMsg("你好")
+await bot.pickGroup("123@chatroom").sendMsg([segment.at("wxid_member"), "你好"])
+await e.reply("收到")
+console.log(result.status, result.receipt)
+```
+
+发送目标和成员均使用原始 ID，专用模块不自行按昵称搜索。底座 RPA 使用显示名操作，即使传 ID，底座仍会拒绝显示名歧义。字符串、数字及 text 段按原顺序拼接，保留空白和换行；正文全空白时拒绝。@ 后必须有正文，正文中间或之后的 @ 不自动移到开头。`e.reply(text, false, { at: true })` 可在群内提及原发送者。
+
+专用发送固定传 `wait_seconds: 12`，WebSocket 超时仍由 `action_timeout` 控制，建议保留默认 60000 毫秒。返回经过校验的扩展 `data`，而非标准发送结果：
+
+| 返回值 | 含义 |
+| --- | --- |
+| `status: queued, queued: true, completed: false` | 只保证入队，没有执行完成保证 |
+| `status: executed, queued: true, completed: true` | 本地 RPA 返回成功 |
+| `receipt: local_rpa_only` | 两种成功状态都仅是本地操作结果，不代表微信服务端送达 |
+
+结果保留协议端的其它字段，不添加 `message_id` 或 `time`。没有消息 ID 时，框架不会安排 `recallMsg` 延时撤回。`e.reply(text, true)` 明确拒绝引用，现有包装器返回 `{ error: [...] }`；需要引用、图片或合并转发的插件须自行适配。
+
+远端失败保留 `action/retcode/response`，成功但结果结构不合法报 `INVALID_RESPONSE`。本地 `TIMEOUT`、断线及远端 `35005` 均可能发生在任务已经入队后，不自动重试，也不回退到标准 `send_message`。原始 `sendApi` 返回完整协议响应，调用微信写扩展时可显式传 `dry_run: true` 预检查；不要将重发同一 echo 当成幂等重试。
+
+群 `.setName()` / `.quit()` 不自动补 `wechat.confirm`，协议端会拒绝缺少确认的请求。用户明确要求群管理时，调用方通过 `sendApi` 显式传入标准动作的 `wechat.confirm: true` 或微信扩展的 `confirm: true`。`wechat.send_file_msg` 仅接受底座容器内已有文件路径，不能直接使用 Yunzai 本地路径替代文件传输。
+
+### 事件与联调边界
+
+标准文本消息保留 `e.onebot` 原始事件。微信收到的 @ 目前只是文本，不设置 `e.atBot`。群命令需要使用已有机器人前缀，或在群配置中设置 `onlyReplyAt: 0`；不会自动修改群配置。
+
+`wechat.message_metadata`（非文本或资料不完整）及 `wechat.message_sent`（自身发送）只通过 `onebot12.event` 发布，不触发普通命令或自动回复。`meta.wechat.event_gap` 同样保留原始事件，并记录 `reason/dropped`；已知丢失数量不等于完整丢失总数。不自动拉历史补齐，重连不补发离线消息。
+
+微信在线状态是协议端对数据库、采集和 RPA 的本地可用性估计，不是微信服务端在线证明。当前通过模拟协议端验证文本、错误处理及重连，尚未完成真实微信联调。人工验收时使用明确指定的测试联系人和群，分别确认文本及单成员 @，并在微信客户端检查实际显示；本地执行成功不能替代此检查。
+
 ## 连接行为与实现边界
 
-入口文件负责注册，`plugins/adapter/onebot12/` 内分别管理连接、账号、协议校验和消息/文件转换。公共 WebSocket 升级逻辑位于 `lib/ws.js`，`Bot.wsGuards[path](req)` 可返回 `{ statusCode, message }` 拒绝升级，或返回 undefined 放行；全局鉴权先执行。
+入口文件负责注册，`plugins/adapter/onebot12/` 内分别管理连接、账号、协议校验和消息/文件转换；`wechat-ai.js` 集中处理微信专用账号、文本发送与缺口日志，连接核心和插件加载器共用。公共 WebSocket 升级逻辑位于 `lib/ws.js`，`Bot.wsGuards[path](req)` 可返回 `{ statusCode, message }` 拒绝升级，或返回 undefined 放行；全局鉴权先执行。
 
 连接首事件必须为 `meta.connect`，版本须与握手子协议一致。初始化查询状态和能力，将状态快照与期间收到的增量合并后发布账号。初始状态查询失败但已收到完整首次 `status_update` 时使用该事件初始化。后续状态增量未提及的账号保持原状，`good` 与账号 `online` 分开记录。
 
@@ -134,7 +202,7 @@ await e.reply(segment.raw({ type: "vendor.custom_segment", data: { value: 1 } })
 
 动作响应直接匹配当前连接的 echo；每个账号的业务转换顺序执行，不同账号互不等待。断线拒绝待处理动作、终止进行中的媒体下载并清理连接状态。
 
-首版没有封装：正向 WebSocket、HTTP、Webhook、MessagePack、Guild/Channel、文件分片、禁言踢人、请求审批、历史消息及特定协议端扩展。不保证依赖 QQ/ICQQ 专属接口或数字账号假设的插件直接可用。
+首版没有封装：正向 WebSocket、HTTP、Webhook、MessagePack、Guild/Channel、文件分片、禁言踢人、请求审批、历史消息；微信仅封装上述文本发送扩展。不保证依赖 QQ/ICQQ 专属接口或数字账号假设的插件直接可用。
 
 ## 验证与排查
 
@@ -143,7 +211,7 @@ node --test test/onebot12/*.test.js
 # 或 npm run test:onebot12
 ```
 
-测试通过本地 HTTP/WebSocket 模拟协议端与受控会话覆盖握手、双层鉴权、字符串 ID、多账号、状态增量、连接接管、动作匹配、超时/清理、插件回复与主人识别、媒体和通知。框架事件准备及插件回复处理使用实际源码方法隔离测试，不启动 Redis、浏览器或真实聊天账号。
+测试通过本地 HTTP/WebSocket 模拟协议端与受控会话覆盖握手、双层鉴权、字符串 ID、多账号、状态增量、连接接管、动作匹配、超时/清理、插件回复与主人识别、媒体和通知。框架事件准备及插件回复处理使用实际源码方法隔离测试，不启动 Redis、浏览器或真实聊天账号。`wechat-ai.test.js` 额外覆盖专用模块选择、真实接口形状、文本/@、插件引用拒绝、无回执撤回保护、错误不重发、扩展事件及本地反向 WS 重连接管。
 
 | 现象                       | 检查项                                                                |
 | -------------------------- | --------------------------------------------------------------------- |
@@ -153,6 +221,10 @@ node --test test/onebot12/*.test.js
 | 建连后马上断开             | 首事件、版本、JSON 文本帧和基本字段是否合法                           |
 | 连接存在但账号未上线       | `get_status` / 首次 `status_update` 中是否有 `online: true` 的账号    |
 | UNSUPPORTED_ACTION / 10002 | 协议端未实现该动作                                                    |
+| 微信写操作 35002 | 检查协议端 `onebot.write_enabled` 是否开启并重启 Bot |
+| 微信发送 35001 | 目标或群成员不存在、名称有歧义；传准确 ID，核对 GUI 显示名冲突 |
+| 微信发送 35005 | 本地 RPA 结果未知，任务可能继续执行；检查微信后再决定，不自动重试 |
+| 微信群命令无响应 | 检查前缀和 `onlyReplyAt`；收到的 @ 文本不会设置 `e.atBot` |
 | 图片没有 URL               | 协议端文件能力、远端下载响应或文件大小限制；检查段内 error            |
 | 超时                       | 协议端是否按原字符串返回 echo；不会自动重发可能已执行的动作           |
 

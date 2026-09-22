@@ -63,12 +63,12 @@ export class Account {
     this.assertActive()
     return response.data
   }
-  async refresh() {
+  async refresh({ friends = true } = {}) {
     const tasks = [
       this.invoke("get_self_info").then(info => {
         this.info = userInfo(info)
       }),
-      this.getFriendMap(),
+      ...(friends ? [this.getFriendMap()] : []),
       this.getGroupMap(),
     ]
     for (const result of await Promise.allSettled(tasks))
