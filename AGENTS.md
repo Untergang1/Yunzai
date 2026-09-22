@@ -12,12 +12,12 @@
 - 本文件只记录协作约定与当前开发目标，不重复维护目录结构或开发文档副本。
 - 涉及架构、模块边界、接口、数据契约、配置或运行流程的变更，应同步更新相关文档；新增文档应能从 README 或其链接到达。
 
-## OneBot v12 适配器
+## 当前开发目标：对齐并联调 wechat-ai
 
-已实现反向 WebSocket、私聊和群聊、多账号、媒体文件和标准通知，默认关闭。当前配置、接口、能力限制和验证方法见 [OneBot v12 适配器文档](docs/onebot-v12.md)，该文档亦可从 README 到达。
-
-- 后续开发继续以 [OneBot 12 官方文档](https://12.onebot.dev/) 的 OneBot Connect 和接口定义为协议依据，不直接套用 OneBot v11 的字段、消息格式或行为假设。
-- 新增通信方式、接口或扩展能力时，同步更新适配器文档和相应验证。
+- 本地联调仓库：`/home/xkf/Projects/wechat-ai`（`~/Projects/wechat-ai`）。以其当前代码核对实际能力，先阅读该仓库的 `AGENTS.md`、[README](../wechat-ai/README.md) 和 [OneBot 接口文档](../wechat-ai/docs/onebot.md)。
+- 复用现有 OneBot v12 连接核心，将 `wechat-ai` 的有限能力与 `wechat.*` 扩展集中在专用适配模块，优先打通文本收发；不伪造消息回执或未实现能力。
+- 本项目配置、接口与验证入口：[OneBot v12 适配器文档](docs/onebot-v12.md)。接口或行为变更时同步更新文档和相应验证。
+- 协议依据：[OneBot Connect](https://12.onebot.dev/connect/)、[接口定义](https://12.onebot.dev/interface/) 和 [扩展规则](https://12.onebot.dev/interface/rules/)，不套用 OneBot v11 的协议假设。
 
 ## 开发约定
 
