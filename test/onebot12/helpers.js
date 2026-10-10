@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events"
 import { readFileSync } from "node:fs"
 import { setTimeout as delay } from "node:timers/promises"
 import { OneBot12Adapter } from "../../plugins/adapter/onebot12/adapter.js"
+import { requestLog, logUrl } from "../../lib/redact.js"
 
 export const self = { platform: "qq", user_id: "12345" }
 export const HOLD = Symbol("hold")
@@ -34,6 +35,17 @@ export function method(filename, name, bindings = {}) {
     ...Object.values(bindings),
   )
 }
+// Exercise the real Bot.wsConnect upgrade path from lib/bot.js.
+export const wsConnect = Bot =>
+  method("lib/bot.js", "wsConnect", {
+    util: {
+      makeLog: (...args) => Bot.makeLog(...args),
+      String: value => (typeof value === "string" ? value : JSON.stringify(value)),
+    },
+    cfg: { server: { auth: {} } },
+    requestLog,
+    logUrl,
+  }).bind(Object.assign(Bot, { stat: { online: 2 } }))
 export function makeBot() {
   const bot = new EventEmitter()
   Object.assign(bot, {

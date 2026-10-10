@@ -5,8 +5,17 @@ import { once } from "node:events"
 import { WebSocket, WebSocketServer } from "ws"
 import { OneBot12Adapter } from "../../plugins/adapter/onebot12/adapter.js"
 import { WechatAIAccount } from "../../plugins/adapter/onebot12/wechat-ai.js"
-import { upgrade } from "../../lib/ws.js"
-import { Socket, HOLD, makeBot, defaults, event, message, method, until } from "./helpers.js"
+import {
+  Socket,
+  HOLD,
+  makeBot,
+  wsConnect,
+  defaults,
+  event,
+  message,
+  method,
+  until,
+} from "./helpers.js"
 
 const self = { platform: "wechat", user_id: "wxid_bot.001" }
 const version = { impl: "wechat-ai", version: "0.1.0", onebot_version: "12" }
@@ -332,9 +341,7 @@ test("wechat-ai reverse WebSocket authenticates, routes text and reconnects with
   })
   adapter.load()
   const server = http.createServer()
-  server.on("upgrade", (req, socket, head) =>
-    upgrade(Bot, req, socket, head, [], Bot.makeLog.bind(Bot)),
-  )
+  server.on("upgrade", wsConnect(Bot))
   server.listen(0, "127.0.0.1")
   await once(server, "listening")
   const clients = []

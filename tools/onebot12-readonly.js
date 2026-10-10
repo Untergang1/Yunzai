@@ -10,7 +10,28 @@ import YAML from "yaml"
 import { WebSocketServer } from "ws"
 import { OneBot12Adapter } from "../plugins/adapter/onebot12/adapter.js"
 import { WechatAIAccount } from "../plugins/adapter/onebot12/wechat-ai.js"
-import { upgrade } from "../lib/ws.js"
+
+// Probe-only subset of Bot.wsConnect: same auth, routing and guard order, without loading lib/bot.js.
+function upgrade(bot, req, socket, head) {
+  const reject = (statusCode, message) =>
+    socket.end(`HTTP/1.1 ${statusCode} ${message}\r\nConnection: close\r\n\r\n`)
+  let url
+  try {
+    url = new URL(req.url, "ws://localhost")
+  } catch {
+    return reject(400, "Bad Request")
+  }
+  req.query = Object.fromEntries(url.searchParams.entries())
+  if (bot.serverAuth(req) === false) return reject(401, "Unauthorized")
+  const path = url.pathname.split("/")[1]
+  if (!(path in bot.wsf)) return reject(404, "Not Found")
+  const failure = bot.wsGuards[path]?.(req)
+  if (failure) return reject(failure.statusCode, failure.message)
+  bot.wss.handleUpgrade(req, socket, head, conn => {
+    conn.on("close", () => bot.cleanupBotConnection(conn))
+    for (const handler of bot.wsf[path]) handler(conn, req, socket, head)
+  })
+}
 
 export const READ_ACTIONS = new Set([
   "get_version",
@@ -221,7 +242,7 @@ export async function runProbe({ config, serverConfig, directory, observeMs = 30
       socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
       return
     }
-    upgrade(bot, req, socket, head, Object.keys(serverConfig.auth || {}), () => {})
+    upgrade(bot, req, socket, head)
   })
   let observing = false
   bot.on("onebot12.event", ({ event }) => {

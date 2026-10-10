@@ -34,7 +34,7 @@ ws://localhost:2536/OneBotv12
 
 服务器全局 `server.auth` 独立生效，两层校验都必须通过。例如全局配置了 `Authorization: Bearer ...` 时，应在两侧使用一致的请求头；只传 `access_token` query 不能满足全局 Authorization 配置。握手失败返回 HTTP 401，子协议错误返回 400，路径错误返回 404。协议端负责断线重连。
 
-连接日志隐藏 Authorization、Cookie、access_token 和服务器配置的鉴权字段。v12 WebSocket 数据帧只记录长度，避免记录文件数据。
+连接日志隐藏 Authorization、Cookie、access_token 和服务器配置的鉴权字段。入站 WebSocket 数据帧按核心规则仅在 debug 级别记录，并按 `log_length` 截断；适配器发出的动作帧不经核心日志。
 
 ## 账号和插件接口
 
@@ -192,7 +192,7 @@ console.log(result.status, result.receipt)
 
 ## 连接行为与实现边界
 
-入口文件负责注册，`plugins/adapter/onebot12/` 内分别管理连接、账号、协议校验和消息/文件转换；`wechat-ai.js` 集中处理微信专用账号、文本发送与缺口日志，连接核心和插件加载器共用。公共 WebSocket 升级逻辑位于 `lib/ws.js`，`Bot.wsGuards[path](req)` 可返回 `{ statusCode, message }` 拒绝升级，或返回 undefined 放行；全局鉴权先执行。
+入口文件负责注册，`plugins/adapter/onebot12/` 内分别管理连接、账号、协议校验和消息/文件转换；`wechat-ai.js` 集中处理微信专用账号、文本发送与缺口日志，连接核心和插件加载器共用。WebSocket 升级沿用上游 `Bot.wsConnect`（`lib/bot.js`），本 fork 只在其中增加两处挂钩：日志脱敏（`lib/redact.js`）与 `Bot.wsGuards[path](req)`。守卫在全局鉴权和处理器存在检查之后执行，可返回 `{ statusCode, message }` 拒绝升级，或返回 undefined 放行。
 
 连接首事件必须为 `meta.connect`，版本须与握手子协议一致。初始化查询状态和能力，将状态快照与期间收到的增量合并后发布账号。初始状态查询失败但已收到完整首次 `status_update` 时使用该事件初始化。后续状态增量未提及的账号保持原状，`good` 与账号 `online` 分开记录。
 

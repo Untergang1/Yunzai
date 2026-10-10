@@ -3,10 +3,10 @@ import assert from "node:assert/strict"
 import http from "node:http"
 import { once } from "node:events"
 import { WebSocket, WebSocketServer } from "ws"
-import { upgrade, requestLog } from "../../lib/ws.js"
+import { requestLog } from "../../lib/redact.js"
 import { OneBot12Adapter } from "../../plugins/adapter/onebot12/adapter.js"
 import { verifyRequest } from "../../plugins/adapter/onebot12/protocol.js"
-import { makeBot, defaults, connect, message, until } from "./helpers.js"
+import { makeBot, wsConnect, defaults, connect, message, until } from "./helpers.js"
 
 test("real reverse WS handshake, query routing, event delivery and action response", async t => {
   const Bot = makeBot()
@@ -19,9 +19,7 @@ test("real reverse WS handshake, query routing, event delivery and action respon
   })
   adapter.load()
   const server = http.createServer()
-  server.on("upgrade", (req, socket, head) =>
-    upgrade(Bot, req, socket, head, [], Bot.makeLog.bind(Bot)),
-  )
+  server.on("upgrade", wsConnect(Bot))
   server.listen(0, "127.0.0.1")
   await once(server, "listening")
   const base = `ws://127.0.0.1:${server.address().port}`
@@ -104,6 +102,7 @@ test("Bearer precedence, exact token bytes, global auth layering and redaction",
   const writes = []
   const Bot = {
     serverAuth: () => false,
+    makeLog() {},
     wsf: { OneBotv12: [] },
     wsGuards: {
       OneBotv12: () => {
@@ -111,13 +110,10 @@ test("Bearer precedence, exact token bytes, global auth layering and redaction",
       },
     },
   }
-  upgrade(
-    Bot,
-    { ...req, socket: {} },
+  wsConnect(Bot)(
+    { ...req, headers: { ...req.headers, host: "localhost" }, socket: {} },
     { write: v => writes.push(v), destroy() {} },
     Buffer.alloc(0),
-    [],
-    () => {},
   )
   assert.match(writes[0], /401/)
 })
