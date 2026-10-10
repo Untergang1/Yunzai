@@ -18,6 +18,7 @@
 | `README.md`                    | 顶部 fork 说明块                                                                         | fork 入口           |
 | `lib/bot.js`                   | 引入 `lib/redact.js`；`serverAuth`/`wsConnect` 日志脱敏；`wsGuards` 字段及升级前守卫调用 | OneBot v12 鉴权挂钩 |
 | `lib/plugins/loader.js`        | `image` 段缺少 `url` 时不加入 `e.img`                                                    | 通用修复，可提上游  |
+| `lib/plugins/loader.js`        | `checkDisable` 的 `enable`/`disable` 同时匹配插件目录名                                  | 通用增强，可提上游  |
 | `plugins/system/quit.js`       | 主人 ID 同时按字符串和数字匹配群成员                                                     | 通用修复，可提上游  |
 | `plugins/adapter/OneBotv11.js` | 请求超时不再断开连接，改由心跳判断；cookies/csrf 后台限时获取并重试                      | 通用修复，可提上游  |
 | `package.json`                 | `test:onebot12`、`probe:wechat-readonly` 脚本                                            | fork 入口           |
