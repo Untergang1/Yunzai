@@ -45,7 +45,7 @@ export class disPri extends plugin {
   }
 
   async sendTips() {
-    if (this.e.user_id == (this.e.self_user_id ?? this.e.self_id)) return
+    if (this.e.user_id == this.e.self_id) return
 
     /** cd */
     const key = `Yz:disablePrivate:${this.e.user_id}`

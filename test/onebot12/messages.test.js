@@ -65,6 +65,35 @@ test("private/group event replies, mentions, quoting and master configuration", 
   assert.equal(ws.requests.at(-1).action, "delete_message")
 })
 
+test("bot's own platform user ID maps to self_id for core plugins", async t => {
+  const { Bot, bot, ws } = await fixture(t)
+  const events = []
+  Bot.on("message", e => events.push(e))
+  ws.push(
+    message({
+      user_id: self.user_id,
+      message: [
+        { type: "mention", data: { user_id: self.user_id } },
+        { type: "reply", data: { message_id: "m", user_id: self.user_id } },
+      ],
+    }),
+  )
+  await until(() => events.length === 1)
+  const [e] = events
+  assert.equal(e.user_id, bot.self_id)
+  assert.equal(e.sender.user_id, bot.self_id)
+  assert.equal(e.self_user_id, self.user_id)
+  assert.equal(e.message[0].qq, bot.self_id)
+  assert.equal(e.message[1].user_id, bot.self_id)
+  await bot.pickGroup("g").sendMsg([{ type: "at", qq: bot.self_id }, "hi"])
+  assert.deepEqual(ws.requests.at(-1).params.message[0], {
+    type: "mention",
+    data: { user_id: self.user_id },
+  })
+  await bot.pickFriend(bot.self_id).sendMsg("hi")
+  assert.equal(ws.requests.at(-1).params.user_id, self.user_id)
+})
+
 test("standard segments round trip, unknown segments retain structure without becoming commands", async t => {
   const { bot, adapter } = await fixture(t)
   const encoded = await adapter.messages.encode(bot, [

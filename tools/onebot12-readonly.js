@@ -267,8 +267,8 @@ export async function runProbe({ config, serverConfig, directory, observeMs = 30
     try {
       const raw = e.onebot
       assert.ok(["private", "group"].includes(raw.detail_type))
-      for (const k of ["id", "message_id", "user_id", "group_id", "time"])
-        assert.equal(e[k], raw[k])
+      for (const k of ["id", "message_id", "group_id", "time"]) assert.equal(e[k], raw[k])
+      assert.equal(e.user_id, raw.user_id === raw.self.user_id ? e.self_id : raw.user_id)
       assert.deepEqual(e.self, raw.self)
       assert.equal(e.self_user_id, raw.self.user_id)
       assert.equal(e.message_type, raw.detail_type)

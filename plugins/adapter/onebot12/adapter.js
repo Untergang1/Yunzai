@@ -176,10 +176,12 @@ export class OneBot12Adapter {
     }
     for (const key of ["user_id", "group_id", "message_id", "operator_id"])
       if (source[key] !== undefined) event[key] = source[key]
+    for (const key of ["user_id", "operator_id"])
+      if (event[key] !== undefined) event[key] = bot.localId(event[key])
     const member = bot.gml.get(source.group_id)?.get(source.user_id)
     const friend = bot.fl.get(source.user_id)
     event.sender = {
-      user_id: source.user_id,
+      user_id: event.user_id,
       nickname: member?.nickname || friend?.nickname || source.user_id,
       card: member?.card || "",
     }

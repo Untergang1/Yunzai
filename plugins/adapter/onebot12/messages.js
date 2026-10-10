@@ -66,7 +66,7 @@ export class Messages {
     return id(result?.file_id)
   }
 
-  prepare(input) {
+  prepare(input, bot) {
     if (!Array.isArray(input)) input = [input]
     if (!input.length) throw new TypeError("Message cannot be empty")
     return input.map(value => {
@@ -92,14 +92,14 @@ export class Messages {
         case "at":
           return data.qq === "all"
             ? { type: "mention_all", data: {} }
-            : { type: "mention", data: { user_id: id(data.qq) } }
+            : { type: "mention", data: { user_id: bot.platformId(data.qq) } }
         case "reply":
           return {
             type,
             data: {
               message_id: id(data.id),
               ...(data.qq !== undefined || data.user_id !== undefined
-                ? { user_id: id(data.user_id ?? data.qq) }
+                ? { user_id: bot.platformId(data.user_id ?? data.qq) }
                 : {}),
             },
           }
@@ -131,7 +131,7 @@ export class Messages {
     })
   }
   async encode(bot, input) {
-    const prepared = this.prepare(input) // Validate every segment before any uploads/sends.
+    const prepared = this.prepare(input, bot) // Validate every segment before any uploads/sends.
     const result = []
     for (const item of prepared) {
       if (item.raw) result.push(item.segment)
@@ -218,13 +218,17 @@ export class Messages {
             result.push({ type, text: data.text })
             break
           case "mention":
-            result.push({ type: "at", qq: id(data.user_id) })
+            result.push({ type: "at", qq: bot.localId(id(data.user_id)) })
             break
           case "mention_all":
             result.push({ type: "at", qq: "all" })
             break
           case "reply":
-            result.push({ type, id: id(data.message_id), user_id: id(data.user_id) })
+            result.push({
+              type,
+              id: id(data.message_id),
+              user_id: bot.localId(id(data.user_id)),
+            })
             break
           case "location":
             result.push({ ...data, type })

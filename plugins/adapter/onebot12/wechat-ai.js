@@ -22,7 +22,7 @@ export class WechatAIAccount extends Account {
       throw new TypeError("wechat-ai requires a private or group target")
     const recipient_name = id(target.detail_type === "group" ? target.group_id : target.user_id)
     // prepare only validates; encode would upload media before we could reject it.
-    const segments = this.adapter.messages.prepare(input)
+    const segments = this.adapter.messages.prepare(input, this)
     let message = ""
     let at_user_name
     for (const segment of segments) {

@@ -59,9 +59,9 @@ await bot.pickGroup("001234").sendMsg([segment.at("67890"), "你好"])
 await e.reply("收到", true) // 引用原消息
 ```
 
-主人配置中的键同样使用新账号键，例如 `master: ["ob12/qq/12345:67890"]`。现有 `#设置主人` 流程直接生成这种格式。内置 @机器人及机器人本人判断使用原始 `self_user_id`。第三方插件如假设 `self_id` 是 QQ 数字账号，需要自行适配。
+主人配置中的键同样使用新账号键，例如 `master: ["ob12/qq/12345:67890"]`。现有 `#设置主人` 流程直接生成这种格式。适配器把机器人本人的平台 ID 统一换成账号键：入站事件的 `user_id`、`operator_id`、`sender.user_id`，以及 `at`、`reply` 段中的 ID 若等于 `self.user_id`，都写成 `self_id`；出站 `pickFriend`/`pickMember` 和 `at`、`reply` 段收到 `self_id` 时换回平台 ID。因此核心插件按上游惯例用 `self_id` 判断 @机器人和机器人本人，无需改动；原始值见 `e.self_user_id` 与 `e.onebot`。第三方插件如假设 `self_id` 是 QQ 数字账号，需要自行适配。
 
-发送到指定平台时必须选择具体 `Bot[key]`，或显式使用 `Bot.sendFriendMsg(key, user_id, message)` / `Bot.sendGroupMsg(key, group_id, message)`。全局 `Bot.pickFriend(id)` / `Bot.pickGroup(id)` 仍沿用已有的跨适配器查找和数值转换逻辑，不适用于跨平台同号或超长 ID 的精确路由。
+发送到指定平台时必须选择具体 `Bot[key]`，或显式使用 `Bot.sendFriendMsg(key, user_id, message)` / `Bot.sendGroupMsg(key, group_id, message)`。全局 `Bot.pickFriend(id)` / `Bot.pickGroup(id)` 沿用上游的跨适配器查找：在各账号缓存中同时匹配原始 ID 及其可无损互转的数字/字符串形式，找不到时交给当前随机账号，不适用于跨平台同号 ID 的精确路由。
 
 ### 已封装动作
 

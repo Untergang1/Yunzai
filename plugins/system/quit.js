@@ -9,11 +9,7 @@ export class quit extends plugin {
   }
 
   async accept() {
-    if (
-      this.e.user_id != (this.e.self_user_id ?? this.e.self_id) ||
-      !this.e.group?.quit ||
-      !this.e.group.getMemberMap
-    )
+    if (this.e.user_id != this.e.self_id || !this.e.group?.quit || !this.e.group.getMemberMap)
       return false
 
     const other = cfg.other

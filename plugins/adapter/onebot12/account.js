@@ -34,6 +34,14 @@ export class Account {
     this.stat = { ...item, good: session.good, start_time: Date.now() / 1000 }
     this.version = { ...session.version, id: adapter.id, name: adapter.name }
   }
+  // Yunzai core identifies the bot itself by self_id; the platform knows it as self.user_id.
+  localId(value) {
+    return value === this.self.user_id ? this.self_id : value
+  }
+  platformId(value) {
+    value = id(value)
+    return value === this.self_id ? this.self.user_id : value
+  }
   get nickname() {
     return this.info.user_displayname || this.info.user_name || this.self.user_id
   }
@@ -118,7 +126,7 @@ export class Account {
     return this.pickFriend(user_id)
   }
   pickFriend(user_id) {
-    user_id = id(user_id)
+    user_id = this.platformId(user_id)
     const bot = this
     return {
       user_id,
@@ -212,7 +220,7 @@ export class Account {
   }
   pickMember(group_id, user_id) {
     group_id = id(group_id)
-    user_id = id(user_id)
+    user_id = this.platformId(user_id)
     const bot = this
     return {
       ...this.pickFriend(user_id),
