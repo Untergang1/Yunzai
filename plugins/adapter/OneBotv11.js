@@ -9,22 +9,30 @@ Bot.adapter.push(
     path = this.name
     echo = new Map()
     timeout = 60000
+    /** cookies 与 csrf 依赖协议端访问腾讯网页接口，单独限时并在后台重试 */
+    cookieTimeout = 15000
+    cookieRetryInterval = 300000
+    cookieRetryTimes = 12
+    /** 连续错过多少个心跳周期视为连接失效 */
+    heartbeatLost = 3
 
     makeLog(msg) {
       return Bot.String(msg).replace(/base64:\/\/.*?(,|]|")/g, "base64://...$1")
     }
 
-    sendApi(data, ws, action, params = {}) {
+    /** 超时只让本次请求失败，连接存活由心跳判断 */
+    sendApi(data, ws, action, params = {}, timeout = this.timeout) {
       const echo = ulid()
       const request = { action, params, echo }
+      if (ws.readyState !== ws.OPEN) return Promise.reject(Bot.makeError("连接已断开", request))
       ws.sendMsg(request)
       const cache = Promise.withResolvers()
+      cache.ws = ws
       this.echo.set(echo, cache)
-      const timeout = setTimeout(() => {
-        cache.reject(Bot.makeError("请求超时", request, { timeout: this.timeout }))
+      const timer = setTimeout(() => {
+        cache.reject(Bot.makeError("请求超时", request, { timeout }))
         Bot.makeLog("error", ["请求超时", request], data.self_id)
-        ws.terminate()
-      }, this.timeout)
+      }, timeout)
 
       return cache.promise
         .then(data => {
@@ -37,7 +45,7 @@ Bot.adapter.push(
             : data
         })
         .finally(() => {
-          clearTimeout(timeout)
+          clearTimeout(timer)
           this.echo.delete(echo)
         })
     }
@@ -961,6 +969,73 @@ Bot.adapter.push(
       }
     }
 
+    cookieDomains = [
+      "qun",
+      "aq",
+      "connect",
+      "docs",
+      "game",
+      "gamecenter",
+      "haoma",
+      "id",
+      "kg",
+      "mail",
+      "mma",
+      "office",
+      "openmobile",
+      "qqweb",
+      "qzone",
+      "ti",
+      "v",
+      "vip",
+      "y",
+    ].map(i => `${i}.qq.com`)
+
+    /**
+     * 后台获取 cookies 与 csrf，不阻塞连接；失败项定期重试，
+     * 连接断开或被新连接替换后停止
+     */
+    async loadCookies(data, ws) {
+      const { bot } = data
+      const alive = () => Bot[data.self_id] === bot && ws.readyState === ws.OPEN
+      for (let round = 1; alive(); round++) {
+        const failed = []
+        const get = async (key, action, params) => {
+          try {
+            return await bot.sendApi(action, params, this.cookieTimeout)
+          } catch {
+            failed.push(key)
+          }
+        }
+
+        if (!bot.bkn) bot.bkn = (await get("csrf_token", "get_csrf_token"))?.token
+        /** qun.qq.com 失败时跳过其它域名，避免网络不通时批量请求 */
+        const [first, ...rest] = this.cookieDomains.filter(i => !bot.cookies[i])
+        if (first) {
+          const cookies = (await get(first, "get_cookies", { domain: first }))?.cookies
+          if (cookies) {
+            bot.cookies[first] = cookies
+            await Promise.all(
+              rest.map(async domain => {
+                const cookies = (await get(domain, "get_cookies", { domain }))?.cookies
+                if (cookies) bot.cookies[domain] = cookies
+              }),
+            )
+          } else failed.push(...rest)
+        }
+
+        if (!failed.length || !alive()) return
+        if (round >= this.cookieRetryTimes)
+          return Bot.makeLog("error", ["获取 cookies 失败，停止重试", failed], data.self_id)
+        Bot.makeLog(
+          "warn",
+          [`获取 cookies 失败，${this.cookieRetryInterval / 1000} 秒后重试`, failed],
+          data.self_id,
+        )
+        await Bot.sleep(this.cookieRetryInterval)
+      }
+    }
+
     async connect(data, ws) {
       Bot[data.self_id] = {
         adapter: this,
@@ -1066,39 +1141,7 @@ Bot.adapter.push(
         },
       }
 
-      if (
-        (data.bot.cookies["qun.qq.com"] = (
-          await data.bot.sendApi("get_cookies", { domain: "qun.qq.com" }).catch(i => i.error)
-        ).cookies)
-      )
-        for (const i of [
-          "aq",
-          "connect",
-          "docs",
-          "game",
-          "gamecenter",
-          "haoma",
-          "id",
-          "kg",
-          "mail",
-          "mma",
-          "office",
-          "openmobile",
-          "qqweb",
-          "qzone",
-          "ti",
-          "v",
-          "vip",
-          "y",
-        ]) {
-          const domain = `${i}.qq.com`
-          data.bot.cookies[domain] = await data.bot
-            .sendApi("get_cookies", { domain })
-            .then(i => i.cookies)
-            .catch(i => i.error)
-        }
-      data.bot.bkn = (await data.bot.sendApi("get_csrf_token").catch(i => i.error)).token
-
+      this.loadCookies(data, ws)
       data.bot.getFriendMap()
       data.bot.getGroupMemberMap()
 
@@ -1489,14 +1532,26 @@ Bot.adapter.push(
       Bot.em(`${data.post_type}.${data.request_type}.${data.sub_type}`, data)
     }
 
-    heartbeat(data) {
+    heartbeat(data, ws) {
       if (data.status) Object.assign(data.bot.stat, data.status)
+      clearTimeout(ws.heartbeatTimer)
+      if (!(data.interval > 0)) return
+      ws.heartbeatTimer = setTimeout(() => {
+        Bot.makeLog("error", `${this.heartbeatLost} 个心跳周期未收到心跳，断开连接`, data.self_id)
+        ws.terminate()
+      }, data.interval * this.heartbeatLost)
+    }
+
+    close(ws) {
+      clearTimeout(ws.heartbeatTimer)
+      for (const cache of this.echo.values())
+        if (cache.ws === ws) cache.reject(Bot.makeError("连接已断开"))
     }
 
     makeMeta(data, ws) {
       switch (data.meta_event_type) {
         case "heartbeat":
-          this.heartbeat(data)
+          this.heartbeat(data, ws)
           break
         case "lifecycle":
           this.connect(data, ws)
@@ -1546,7 +1601,7 @@ Bot.adapter.push(
     load() {
       if (!Array.isArray(Bot.wsf[this.path])) Bot.wsf[this.path] = []
       Bot.wsf[this.path].push((ws, ...args) =>
-        ws.on("message", data => this.message(data, ws, ...args)),
+        ws.on("message", data => this.message(data, ws, ...args)).on("close", () => this.close(ws)),
       )
     }
   })(),
